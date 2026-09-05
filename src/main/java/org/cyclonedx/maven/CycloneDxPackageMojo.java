@@ -73,7 +73,7 @@ public class CycloneDxPackageMojo extends BaseCycloneDxMojo {
             final Map<String, Component> components = populateComponents(reactorComponents, aggregatedComponents, bomDependencies.getArtifacts(), null);
 
             // TODO manage aggregate that reuses a component already used in a different context
-            transformBom(projectBomComponent, components);
+            transformBom(mavenProject, projectBomComponent, components);
 
             projectDependencies.forEach(dependencies::putIfAbsent);
         }

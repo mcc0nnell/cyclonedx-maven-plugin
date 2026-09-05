@@ -125,7 +125,7 @@ public class CycloneDxMojo extends BaseCycloneDxMojo {
         final Map<String, Component> components = populateComponents(reactorComponents, aggregatedComponents, bomDependencies.getArtifacts(), doProjectDependencyAnalysis(getProject(), bomDependencies));
 
         // TODO manage aggregate that reuses a component already used in a different context
-        transformBom(projectBomComponent, components);
+        transformBom(getProject(), projectBomComponent, components);
 
         projectDependencies.forEach(dependencies::putIfAbsent);
 
