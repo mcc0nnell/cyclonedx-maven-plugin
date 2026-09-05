@@ -1,3 +1,5 @@
+import groovy.json.JsonSlurper
+
 void assertBomFiles(String path, boolean aggregate) {
     File bomFileXml = new File(basedir, path + ".xml")
     File bomFileJson = new File(basedir, path + ".json")
@@ -88,3 +90,14 @@ assert rootDependencies.contains('<dependency ref="pkg:maven/org.cyclonedx.its/i
 assert rootDependencies.contains('<dependency ref="pkg:maven/org.cyclonedx.its/util@1.0-SNAPSHOT?type=jar"/>')
 assert rootDependencies.contains('<dependency ref="pkg:maven/org.cyclonedx.its/skipped@1.0-SNAPSHOT?type=pom"/>')
 assert 6 == (rootDependencies =~ /<dependency ref="pkg:maven/).size()
+
+// CDX 1.7 aggregate transforms must use the lifecycle of the module that owns the dependency.
+// api is a jar, so cyclonedx-core-java is resolved by consumers rather than shipped inside the jar.
+def aggregateJson = new JsonSlurper().parse(new File(basedir, 'target/bom.json'))
+def coreJava = aggregateJson.components.find {
+    it.group == 'org.cyclonedx' && it.name == 'cyclonedx-core-java'
+}
+assert coreJava != null
+assert coreJava.isExternal == true
+assert coreJava.version == null
+assert coreJava.versionRange == 'vers:maven/13.2.0|*'

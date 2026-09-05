@@ -18,15 +18,21 @@
  */
 package org.cyclonedx.maven;
 
+import org.apache.maven.execution.MavenSession;
+import org.apache.maven.lifecycle.LifecycleExecutor;
+import org.apache.maven.model.Plugin;
+import org.apache.maven.plugin.MojoExecution;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
+import org.codehaus.plexus.util.xml.Xpp3Dom;
 import org.cyclonedx.maven.ProjectDependenciesConverter.BomDependencies;
 import org.cyclonedx.model.Component;
 import org.cyclonedx.model.Dependency;
 
+import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -49,6 +55,12 @@ import java.util.Set;
 public class CycloneDxAggregateMojo extends CycloneDxMojo {
     @Parameter(property = "reactorProjects", readonly = true, required = true)
     private List<MavenProject> reactorProjects;
+
+    @Inject
+    private MavenSession session;
+
+    @Inject
+    private LifecycleExecutor lifecycleExecutor;
 
     /**
      * Should non-root reactor projects create a module-only BOM?
@@ -121,7 +133,7 @@ public class CycloneDxAggregateMojo extends CycloneDxMojo {
         final List<String> excludedProjects = new ArrayList<>();
         for (final MavenProject mavenProject : reactorProjects) {
             if (shouldExclude(mavenProject)) {
-            	excludedProjects.add(mavenProject.getArtifactId());
+                excludedProjects.add(mavenProject.getArtifactId());
                 continue;
             }
 
@@ -135,7 +147,7 @@ public class CycloneDxAggregateMojo extends CycloneDxMojo {
             final Map<String, Component> components = populateComponents(reactorComponents, aggregatedComponents, bomDependencies.getArtifacts(), doProjectDependencyAnalysis(mavenProject, bomDependencies));
 
             // TODO manage aggregate that reuses a component already used in a different context
-            transformBom(projectBomComponent, components);
+            transformBom(mavenProject, projectBomComponent, components);
 
             projectDependencies.forEach(dependencies::putIfAbsent);
         }
@@ -145,6 +157,43 @@ public class CycloneDxAggregateMojo extends CycloneDxMojo {
         addMavenProjectsAsParentDependencies(reactorProjects, dependencies);
 
         return "makeAggregateBom";
+    }
+
+    /**
+     * Transform aggregate BOM content using the lifecycle of the reactor project being analyzed.
+     *
+     * The aggregate mojo executes from the reactor root, so the injected Maven session points at the root project.
+     * Clone the session before selecting a module to avoid mutating shared Maven execution state.
+     */
+    private void transformBom(final MavenProject mavenProject,
+                              final Component metadataComponent,
+                              final Map<String, Component> components) throws MojoExecutionException {
+        final MavenSession projectSession = session.clone();
+        projectSession.setCurrentProject(mavenProject);
+        final Component.Type configuredProjectType = hasConfiguredProjectType(mavenProject)
+                ? metadataComponent.getType()
+                : null;
+        try {
+            for (final MojoExecution execution : lifecycleExecutor.calculateExecutionPlan(projectSession, "verify").getMojoExecutions()) {
+                final BomTransformer transformer = transformers.get(execution.getPlugin().getKey() + ':' + execution.getGoal());
+                if (transformer != null) {
+                    transformer.transform(execution, metadataComponent, components);
+                }
+            }
+            if (configuredProjectType != null) {
+                metadataComponent.setType(configuredProjectType);
+            }
+        } catch (Exception e) {
+            throw new MojoExecutionException(
+                    String.format("Cannot calculate Maven execution plan for %s, caused by: %s",
+                            mavenProject.getId(), e.getMessage()), e);
+        }
+    }
+
+    private boolean hasConfiguredProjectType(final MavenProject mavenProject) {
+        final Plugin plugin = mavenProject.getPlugin(CYCLONEDX_PLUGIN_KEY);
+        final Xpp3Dom configuration = (plugin == null) ? null : (Xpp3Dom) plugin.getConfiguration();
+        return configuration != null && configuration.getChild(PROJECT_TYPE) != null;
     }
 
     /**
