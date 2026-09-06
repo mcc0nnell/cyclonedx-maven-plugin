@@ -35,8 +35,6 @@ public class JarTransformer implements BomTransformer {
 
     @Override
     public void transform(MojoExecution execution, Component metadataComponent, Map<String, Component> components) {
-        metadataComponent.setType(Component.Type.LIBRARY);
-
         components.values().forEach(c -> {
             c.setIsExternal(true);
             c.setVersionRange("vers:maven/" + c.getVersion() + "|*");
