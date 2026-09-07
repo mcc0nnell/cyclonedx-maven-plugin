@@ -660,10 +660,10 @@ public abstract class BaseCycloneDxMojo extends AbstractMojo {
     }
 
     /**
-     * Transform Bom content based on plugins goals executions bound to Maven build lifecycle of the current project.
+     * Transform Bom content based on plugins goals executions bound to Maven build lifecycle of the supplied project.
      */
-    protected void transformBom(final Component metadataComponent, final Map<String, Component> components) throws MojoExecutionException {
-        for(MojoExecution execution: calculateExecutionPlan()) {
+    protected void transformBom(final MavenProject mavenProject, final Component metadataComponent, final Map<String, Component> components) throws MojoExecutionException {
+        for(MojoExecution execution: calculateExecutionPlan(mavenProject)) {
             BomTransformer transformer = transformers.get(execution.getPlugin().getKey() + ':' + execution.getGoal());
             if (transformer != null) {
                 transformer.transform(execution, metadataComponent, components);
@@ -671,9 +671,11 @@ public abstract class BaseCycloneDxMojo extends AbstractMojo {
         }
     }
 
-    private List<MojoExecution> calculateExecutionPlan() throws MojoExecutionException {
+    private List<MojoExecution> calculateExecutionPlan(final MavenProject mavenProject) throws MojoExecutionException {
         try {
-            return lifecycleExecutor.calculateExecutionPlan(session, "verify").getMojoExecutions();
+            final MavenSession projectSession = session.clone();
+            projectSession.setCurrentProject(mavenProject);
+            return lifecycleExecutor.calculateExecutionPlan(projectSession, "verify").getMojoExecutions();
         } catch (Exception e) {
             throw new MojoExecutionException(
                     String.format("Cannot calculate Maven execution plan, caused by: %s", e.getMessage()), e);
