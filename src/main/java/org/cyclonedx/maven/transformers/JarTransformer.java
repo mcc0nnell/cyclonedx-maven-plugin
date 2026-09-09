@@ -39,7 +39,8 @@ public class JarTransformer implements BomTransformer {
 
         components.values().forEach(c -> {
             c.setIsExternal(true);
-            c.setVersionRange("vers:maven/" + c.getVersion() + "|*");
+            // no syntax to clarify that there is a preferred version, even if it can be replaced by any
+            c.setVersionRange("vers:maven/*");
         });
     }
 }

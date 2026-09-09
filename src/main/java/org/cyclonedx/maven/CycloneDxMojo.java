@@ -18,8 +18,6 @@
  */
 package org.cyclonedx.maven;
 
-import org.apache.maven.execution.MavenSession;
-import org.apache.maven.lifecycle.LifecycleExecutor;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
